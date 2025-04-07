@@ -31,7 +31,7 @@ parser = argparse.ArgumentParser()
 
 # hyper-parameters
 parser.add_argument("-e", "--epochs", type=int, default=100, help="Number of epochs")
-parser.add_argument("-b", "--batch_size", type=int, default=256, help="Batch size")
+parser.add_argument("-b", "--batch_size", type=int, default=64, help="Batch size")
 parser.add_argument("-lr", "--learning_rate", type=float,  default=1e-4, help="Learning rate for the optimizer")
 parser.add_argument('-wd', '--weight_decay', type=float, default=0, help='Weight decay for optimizer')
 

@@ -92,6 +92,7 @@ def generate_dataset():
 
     for folder in os.listdir(args.in_dir):
         model_path = os.path.join(args.in_dir, folder)
+
         for split in os.listdir(model_path):
 
             # get all the images in the dataset split

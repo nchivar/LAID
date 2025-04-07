@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torchvision import models
+from torchvision.models import MobileNet_V2_Weights
 
 
 class MobileNetV2Classifier(nn.Module):
@@ -8,7 +9,7 @@ class MobileNetV2Classifier(nn.Module):
         super(MobileNetV2Classifier, self).__init__()
 
         # Load pretrained MobileNetV2 backbone
-        mobilenet = models.mobilenet_v2(pretrained=True)
+        mobilenet = models.mobilenet_v2(weights=MobileNet_V2_Weights.DEFAULT)
 
         # Extract only the feature layers (exclude classifier)
         self.features = mobilenet.features  # output: (B, 1280, 8, 8) for 256×256 input

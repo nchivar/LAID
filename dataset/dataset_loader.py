@@ -18,6 +18,8 @@ class TinyGenImage(Dataset):
                 file_path = os.path.join(type_path, image)
                 self.data.append((file_path, label))
 
+        real_img_list, fake_img_list = [], []
+
     def __len__(self):
         return len(self.data)
 

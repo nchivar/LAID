@@ -1,0 +1,1 @@
+python test.py -c True --test_data_img 'dataset/preprocessed/images/test' --test_data_spec 'dataset/preprocessed/spec/test' -m 'outputs/'
