@@ -16,7 +16,8 @@ from torchvision.models import (shufflenet_v2_x0_5,
 # project imports
 from ref_models.Ladevic import CNNModel
 from ref_models.Mulki import MobileNetV2Classifier
-from dataset.dataset_loader import TinyGenImage
+from dataset_util.dataset_loader import SampledGenImage
+from dataset_util.attacked_dataset_loader import AttackedGenImage
 
 # FLOPs/Params
 from thop import profile, clever_format
@@ -34,33 +35,36 @@ parser.add_argument("--best_spec_model", type=str, help="Path to second model (e
 
 args = parser.parse_args()
 device = "cuda" if args.cuda and torch.cuda.is_available() else "cpu"
+ATTACKS = [
+    'crop', 'blur', 'noise', 'compress', 'combined'
+]
 
 # -------------------- LOAD MODEL -------------------- #
 def load_model(checkpoint_path):
-    if 'shufflenet' in checkpoint_path:
+    if 'ShuffleNet' in checkpoint_path:
         model = shufflenet_v2_x0_5(weights=None)
         model.fc = nn.Linear(model.fc.in_features, 2)
-    elif 'mobilenetv3' in checkpoint_path:
+    elif 'MobileNetV3' in checkpoint_path:
         model = mobilenet_v3_small(weights=None)
         model.classifier[3] = nn.Linear(model.classifier[3].in_features, 2)
-    elif 'mnasnet' in checkpoint_path:
+    elif 'MNASNet' in checkpoint_path:
         model = mnasnet0_5(weights=None)
         model.classifier[1] = nn.Linear(model.classifier[1].in_features, 2)
-    elif'squeezenet' in checkpoint_path:
+    elif'SqueezeNet' in checkpoint_path:
         model = squeezenet1_1(weights=None)
         model.classifier[1] = nn.Conv2d(512, 2, kernel_size=(1, 1))
-    elif 'mobilenetv2' in checkpoint_path:
+    elif 'MobileNetV2' in checkpoint_path:
         model = mobilenet_v2(weights=None)
         model.classifier[1] = nn.Linear(model.classifier[1].in_features, 2)
-    elif 'regnet' in checkpoint_path:
+    elif 'RegNet' in checkpoint_path:
         model = regnet_y_400mf(weights=None)
         model.fc = nn.Linear(model.fc.in_features, 2)
-    elif 'efficientnet' in checkpoint_path:
+    elif 'EfficientNet' in checkpoint_path:
         model = efficientnet_b0(weights=None)
         model.classifier[1] = nn.Linear(model.classifier[1].in_features, 2)
-    elif 'ladevic' in checkpoint_path:
+    elif 'Ladevic' in checkpoint_path:
         model = CNNModel()
-    elif 'mulki' in checkpoint_path:
+    elif 'Mulki' in checkpoint_path:
         model = MobileNetV2Classifier()
     else:
         raise ValueError("Unknown model type")
@@ -73,11 +77,42 @@ def load_model(checkpoint_path):
 
 # -------------------- LOAD DATA -------------------- #
 def load_data():
-    test_dataset_img = TinyGenImage(data_dir=args.test_data_img)
-    test_loader_img = torch.utils.data.DataLoader(test_dataset_img, batch_size=256, shuffle=False)
-    test_dataset_spec = TinyGenImage(data_dir=args.test_data_spec)
-    test_loader_spec = torch.utils.data.DataLoader(test_dataset_spec, batch_size=256, shuffle=False)
-    return test_loader_img, test_loader_spec
+    test_dataset_img = SampledGenImage(data_dir=args.test_data_img)
+    test_dataset_spec = SampledGenImage(data_dir=args.test_data_spec)
+    attack_dataset = AttackedGenImage(data_dir=args.test_data_img)  # only apply attacks on raw image
+
+
+    print("-" * 64, flush=True)
+    print(f'Number of spatial test images:{len(test_dataset_img)}')
+    print(f'Number of spectral test images:{len(test_dataset_spec)}')
+    print(f'Number of attacked images:{len(attack_dataset)}')
+    print("-" * 64, flush=True)
+
+    test_loader_img = torch.utils.data.DataLoader(test_dataset_img,
+                                                  batch_size=512,
+                                                  shuffle=True,
+                                                  num_workers=4,
+                                                  pin_memory=True,
+                                                  prefetch_factor=4,
+                                                  persistent_workers=True
+                                                  )
+    test_loader_spec = torch.utils.data.DataLoader(test_dataset_spec,
+                                                   batch_size=512,
+                                                   shuffle=True,
+                                                   num_workers=4,
+                                                   pin_memory=True,
+                                                   prefetch_factor=4,
+                                                   persistent_workers=True
+                                                   )
+    attack_loader = torch.utils.data.DataLoader(attack_dataset,
+                                                batch_size=512,
+                                                shuffle=True,
+                                                num_workers=4,
+                                                pin_memory=True,
+                                                prefetch_factor=4,
+                                                persistent_workers=True
+                                                )
+    return test_loader_img, test_loader_spec, attack_loader
 
 def parse_flops(flops_str):
     units = {'K': 1e3, 'M': 1e6, 'G': 1e9, 'T': 1e12}
@@ -86,7 +121,7 @@ def parse_flops(flops_str):
         return float(flops_str[:-1]) / 1e9 * units[unit]
     return float(flops_str) / 1e9
 
-# -------------------- TEST SINGLE DOMAIN -------------------- #
+# -------------------- TEST CLEAN -------------------- #
 @torch.no_grad()
 def test(model, dataloader):
     model.eval()
@@ -151,43 +186,68 @@ def test(model, dataloader):
     print(f"Acc / GFLOP        : {acc_per_gflop:.4f}% per GFLOP")
     print("-" * 64)
 
+# -------------------- TEST ATTACKED -------------------- #
 @torch.no_grad()
-def test_fusion(img_model, spec_model, img_data, spec_data, fusion_type):
-
+def test_attacked(model, dataloader):
+    model.eval()
     f1 = BinaryF1Score().to(device)
     auc = BinaryAUROC().to(device)
 
-    total, correct = 0, 0
+    # Only attack-specific storage
+    attack_correct = {}
+    attack_total = {}
+    attack_preds = {}
+    attack_targets = {}
 
-    for (imgs, img_labels), (spec_imgs, spec_labels) in zip(img_data, spec_data):
-        assert torch.equal(img_labels, spec_labels), "Label mismatch between spatial and frequency sets"
-
-        imgs, spec_imgs, labels = imgs.to(device), spec_imgs.to(device), img_labels.to(device)
+    for images, labels, attacks in dataloader:
+        images, labels = images.to(device), labels.to(device)
 
         with autocast(device_type=device):
-            img_out = img_model(imgs)
-            spec_out = spec_model(spec_imgs)
+            outputs = model(images)
 
-            # Combine probabilities
-            img_prob = torch.softmax(img_out, dim=1)
-            spec_prob = torch.softmax(spec_out, dim=1)
-            combined = (img_prob + spec_prob) / 2
+        preds = torch.argmax(outputs, dim=1)
+        probs = torch.softmax(outputs, dim=1)[:, 1]
 
-        preds = torch.argmax(combined, dim=1)
-        correct += (preds == labels).sum().item()
-        total += labels.size(0)
+        for i in range(len(attacks)):
+            attack = attacks[i]
+            attack_name = attack if isinstance(attack, str) else attack.lower()
 
-    acc = 100. * correct / total
+            if attack_name not in attack_correct:
+                attack_correct[attack_name] = 0
+                attack_total[attack_name] = 0
+                attack_preds[attack_name] = []
+                attack_targets[attack_name] = []
 
+            attack_correct[attack_name] += (preds[i] == labels[i]).item()
+            attack_total[attack_name] += 1
+            attack_preds[attack_name].append(probs[i].unsqueeze(0))
+            attack_targets[attack_name].append(labels[i].unsqueeze(0))
+
+    # Only print attack-wise metrics
     print("-" * 64)
-    print(f"{fusion_type} Accuracy: {acc:.2f}%")
-    print("-" * 64)
+
+    for attack in ATTACKS:
+        if attack not in attack_total or attack_total[attack] == 0:
+            continue
+
+        attack_preds_tensor = torch.cat(attack_preds[attack])
+        attack_targets_tensor = torch.cat(attack_targets[attack])
+
+        attack_acc = 100. * attack_correct[attack] / attack_total[attack]
+        attack_f1 = f1(attack_preds_tensor, attack_targets_tensor).item()
+        attack_auc = auc(attack_preds_tensor, attack_targets_tensor).item()
+
+        print(f"Attack: {attack.upper()}")
+        print(f"  Accuracy    : {attack_acc:.2f}%")
+        print(f"  F1 Score    : {attack_f1:.4f}")
+        print(f"  AUROC       : {attack_auc:.4f}")
+        print("-" * 64)
 
 # -------------------- MAIN -------------------- #
 if __name__ == "__main__":
-    print("Running Testing")
 
-    test_data_img, test_data_spec= load_data()
+    print("Loading Data...", flush=True)
+    test_data_img, test_data_spec, attack_data= load_data()
 
     models = []
     for filename in os.listdir(args.models_dir):
@@ -195,38 +255,25 @@ if __name__ == "__main__":
            models.append(os.path.join(args.models_dir, filename))
 
     print(f"Models to be tested: {models}")
+    print("Starting Testing")
 
-
-    # # single domain
     # print("-" * 64)
-    # print(f"SINGLE DOMAIN")
+    # print(f"Clean Images")
     # print("-" * 64)
     # for checkpoint in models:
     #     model = load_model(checkpoint)
     #     model.to(device)
     #     if 'img' in checkpoint:
     #         test(model, test_data_img)
-    #     elif 'spec' in checkpoint:
+    #     elif 'freq' in checkpoint:
     #         test(model, test_data_spec)
 
-    # fusion
+    print(f"Attacked Images")
     print("-" * 64)
-    print(f"FUSION")
-    print("-" * 64)
-    best_img_model = load_model('outputs/img_regnet.pth').to(device)
-    best_spec_model = load_model('outputs/spec_mulki.pth').to(device)
-
     for checkpoint in models:
-
-        # MSDI/CMBF
+        model = load_model(checkpoint)
+        model.to(device)
         if 'img' in checkpoint:
-            img_model = load_model(checkpoint).to(device)
-            spec_model = load_model(checkpoint.replace("img", "spec")).to(device)
-            test_fusion(img_model, spec_model, test_data_img, test_data_spec, 'MSDI')
-            test_fusion(img_model, best_spec_model, test_data_img, test_data_spec, 'CMBF')
+            test_attacked(model, attack_data)
 
-        # CMBS
-        elif 'spec' in checkpoint:
-            spec_model = load_model(checkpoint).to(device)
-            test_fusion(best_img_model, spec_model, test_data_img, test_data_spec, 'CMBS')
 
