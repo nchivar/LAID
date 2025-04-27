@@ -22,8 +22,8 @@ from torchvision.models import (shufflenet_v2_x0_5, ShuffleNet_V2_X0_5_Weights,
                                 efficientnet_b0, EfficientNet_B0_Weights)
 
 # project imports
-from ref_models.Ladevic import CNNModel
-from ref_models.Mulki import MobileNetV2Classifier
+from models.Ladevic import CNNModel
+from models.Mulki import MobileNetV2Classifier
 from dataset_util.dataset_loader import SampledGenImage
 from dataset_util.gen_dataset import generate_dataset
 
