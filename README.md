@@ -23,8 +23,7 @@
 |RegNet|RegNet: Self-Regulated Network for Image Classification|:white_check_mark:|:white_check_mark:|
 |EfficientNetV2|EfficientNetV2: Smaller Models and Faster Training|:white_check_mark:|:white_check_mark:|
 |Lađević et al.|Detection of AI-Generated Synthetic Images with a Lightweight CNN|:white_check_mark:|:white_check_mark:|
-|SpottingDiffusion |SpottingDiffusion: using transfer learning to
-detect latent diffusion model-synthesized images|:white_check_mark:|:white_check_mark:|
+|SpottingDiffusion |SpottingDiffusion: using transfer learning to detect latent diffusion model-synthesized images|:white_check_mark:|:white_check_mark:|
 
 
 # Setup
