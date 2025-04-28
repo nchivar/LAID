@@ -3,7 +3,7 @@
 <div>
    <a href="https://github.com/nchivar/LAID"><img src="https://visitor-badge.laobi.icu/badge?page_id=nchivar/LAID"/></a>
    <a href="https://github.com/nchivar/LAID"><img src="https://img.shields.io/github/stars/Ekko-zn/nchivar/LAID"/></a>
-   <a href="https://drive.google.com/drive/folders/1p4ewuAo7d5LbNJ4cKyh10Xl9Fg2yoFOw?usp=drive_link](https://drive.google.com/drive/folders/1FY7boXxIyKh8XYJwFwR104XL8_C35Umc?usp=sharing)"><img src="https://img.shields.io/badge/Database-Release-green"></a>
+   <a href="[https://drive.google.com/drive/folders/1p4ewuAo7d5LbNJ4cKyh10Xl9Fg2yoFOw?usp=drive_link](https://drive.google.com/drive/folders/1FY7boXxIyKh8XYJwFwR104XL8_C35Umc?usp=sharing](https://drive.google.com/drive/folders/1FY7boXxIyKh8XYJwFwR104XL8_C35Umc?usp=sharing))"><img src="https://img.shields.io/badge/Database-Release-green"></a>
 </div>
 
 
