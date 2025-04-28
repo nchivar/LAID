@@ -38,7 +38,8 @@ detect latent diffusion model-synthesized images|:white_check_mark:|:white_check
 # Training
 For training, you simply need to run `train.py` which will automatically subsample your GenImage download and save the subsampled dataset based on the `saved_dataset ` flag. 
 
-Argument | Type | Default | Description
+|Argument | Type | Default | Description|
+|:--------:|:------:|:----:|:------:|
 -e, --epochs | int | 100 | Number of training epochs.
 -b, --batch_size | int | 64 | Batch size for training.
 -lr, --learning_rate | float | 1e-4 | Learning rate for the optimizer.
