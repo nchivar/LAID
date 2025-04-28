@@ -3,7 +3,7 @@
 <div>
    <a href="https://github.com/nchivar/LAID"><img src="https://visitor-badge.laobi.icu/badge?page_id=nchivar/LAID"/></a>
    <a href="https://github.com/nchivar/LAID"><img src="https://img.shields.io/github/stars/Ekko-zn/nchivar/LAID"/></a>
-   <a href="https://drive.google.com/drive/folders/1p4ewuAo7d5LbNJ4cKyh10Xl9Fg2yoFOw?usp=drive_link"><img src="https://img.shields.io/badge/Database-Release-green"></a>
+   <a href="https://drive.google.com/drive/folders/1p4ewuAo7d5LbNJ4cKyh10Xl9Fg2yoFOw?usp=drive_link](https://drive.google.com/drive/folders/1FY7boXxIyKh8XYJwFwR104XL8_C35Umc?usp=sharing)"><img src="https://img.shields.io/badge/Database-Release-green"></a>
 </div>
 
 
@@ -48,8 +48,8 @@ For training, you simply need to run `train.py` which will automatically subsamp
 --train_image_count | int | 100000 | Number of images to subsample for training set.
 --val_image_count | int | 12500 | Number of images to subsample to use for validation and test sets.
 --saved_dataset | str | 'dataset' | Locatiion of subsampled GenImage dataset.
--m, --model | str | Required | Model to train on AIGI detection. Choices: {"ShuffleNet", "MobileNetV3", "MNASNet", "SqueezeNet", "MobileNetV2", "RegNet", "EfficientNet", "Ladevic", "Mulki"}.
--dm, --modality | str | Required | Modality of input data (raw RGB (img) or 2D FFT plot ("freq"). Choices: {"img", "freq"}.
+-m, --model | str | Required | Model to train on AIGI detection. **Choices: {"ShuffleNet", "MobileNetV3", "MNASNet", "SqueezeNet", "MobileNetV2", "RegNet", "EfficientNet", "Ladevic", "Mulki"}.**
+-dm, --modality | str | Required | Modality of input data (raw RGB (img) or 2D FFT plot ("freq"). **Choices: {"img", "freq"}.**
 -mc, --model_checkpoint | str | None | Path to a previous model checkpoint for continued training (leave as None if you want to train from scratch).
 --output_dir | str | Required | Directory where all output model weights and training loss plots will be saved.
 --output_model | str | Required | Name of model weight file to save.
