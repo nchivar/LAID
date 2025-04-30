@@ -21,7 +21,6 @@
 |MobileNetV3|Searching for MobileNetV3|:white_check_mark:|:white_check_mark:|
 |MnasNet|MnasNet: Platform-Aware Neural Architecture Search for Mobile|:white_check_mark:|:white_check_mark:|
 |RegNet|RegNet: Self-Regulated Network for Image Classification|:white_check_mark:|:white_check_mark:|
-|EfficientNetV2|EfficientNetV2: Smaller Models and Faster Training|:white_check_mark:|:white_check_mark:|
 |Lađević et al.|Detection of AI-Generated Synthetic Images with a Lightweight CNN|:white_check_mark:|:white_check_mark:|
 |SpottingDiffusion |SpottingDiffusion: using transfer learning to detect latent diffusion model-synthesized images|:white_check_mark:|:white_check_mark:|
 
@@ -44,7 +43,7 @@ For training, simply run `train.py` which will automatically subsample your GenI
 --train_image_count | int | 100000 | Number of images to subsample for training set.
 --val_image_count | int | 12500 | Number of images to subsample to use for validation and test sets.
 --saved_dataset | str | 'dataset' | Locatiion of subsampled GenImage dataset.
--m, --model | str | Required | Model to train on AIGI detection. **Choices: {"ShuffleNet", "MobileNetV3", "MNASNet", "SqueezeNet", "MobileNetV2", "RegNet", "EfficientNet", "Ladevic", "Mulki"}.**
+-m, --model | str | Required | Model to train on AIGI detection. **Choices: {"ShuffleNet", "MobileNetV3", "MNASNet", "SqueezeNet", "MobileNetV2", "RegNet", "Ladevic", "Mulki"}.**
 -dm, --modality | str | Required | Modality of input data (raw RGB (img) or 2D FFT plot ("freq"). **Choices: {"img", "freq"}.**
 -mc, --model_checkpoint | str | None | Path to a previous model checkpoint for continued training (leave as None if you want to train from scratch).
 --output_dir | str | Required | Directory where all output model weights and training loss plots will be saved.
@@ -64,7 +63,7 @@ For test, simply run `test.py`.
 ### Testing Parameters
 |Argument | Type | Default | Description|
 |:-----------:|:------:|:----:|:------:|
--m, --models_dir | str | Required | Model to train on AIGI detection. **Choices: {"ShuffleNet", "MobileNetV3", "MNASNet", "SqueezeNet", "MobileNetV2", "RegNet", "EfficientNet", "Ladevic", "Mulki"}.**
+-m, --models_dir | str | Required | Model to train on AIGI detection. **Choices: {"ShuffleNet", "MobileNetV3", "MNASNet", "SqueezeNet", "MobileNetV2", "RegNet", "Ladevic", "Mulki"}.**
 --test_data_img | str | Required | Location of subsampled spatial test set (default location: ```dataset/spec/test```)
 --test_data_spec | str | Required | Location of subsampled spectral test set (default location: ```dataset/spec/test```)
 --attack | bool | True | Test models on adversarial attacks.
