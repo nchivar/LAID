@@ -8,10 +8,10 @@ class MobileNetV2Classifier(nn.Module):
     def __init__(self, num_classes=2):
         super(MobileNetV2Classifier, self).__init__()
 
-        # Load pretrained MobileNetV2 backbone
+        # load pretrained MobileNetV2 backbone
         mobilenet = models.mobilenet_v2(weights=MobileNet_V2_Weights.DEFAULT)
 
-        # Extract only the feature layers (exclude classifier)
+        # extract only the feature layers (exclude classifier)
         self.features = mobilenet.features  # output: (B, 1280, 8, 8) for 256×256 input
 
         self.flatten = nn.Flatten()
@@ -23,8 +23,8 @@ class MobileNetV2Classifier(nn.Module):
         )
 
     def forward(self, x):
-        x = self.features(x)  # Output shape: (B, 1280, 8, 8)
-        x = self.flatten(x)  # Shape: (B, 81920)
-        x = self.dropout(x)  # Shape: (B, 81920)
-        x = self.classifier(x)  # Shape: (B, num_classes)
+        x = self.features(x)
+        x = self.flatten(x)
+        x = self.dropout(x)
+        x = self.classifier(x)
         return x

@@ -44,10 +44,10 @@ class CNNModel(nn.Module):
         )
 
     def forward(self, x):
-        x = self.conv1(x)  # (3 -> 64)
-        x = self.conv2(x)  # (64 -> 128)
-        x = self.conv3(x)  # (128 -> 256)
-        x = self.conv4(x)  # (256 -> 512)
-        x = self.global_pool(x)  # (B, 512, 1, 1)
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.conv4(x)
+        x = self.global_pool(x)
         x = self.classifier(x)
         return x

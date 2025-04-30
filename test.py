@@ -2,6 +2,7 @@
 import argparse
 import os
 import torch
+import numpy as np
 import torch.nn as nn
 from torch.amp import autocast
 from torchmetrics.classification import BinaryF1Score, BinaryAUROC
@@ -13,25 +14,22 @@ from torchvision.models import (shufflenet_v2_x0_5,
                                 regnet_y_400mf,
                                 efficientnet_b0)
 
+from thop import profile, clever_format  # FLOPs/Params
+
 # project imports
 from models.Ladevic import CNNModel
 from models.Mulki import MobileNetV2Classifier
 from dataset_util.dataset_loader import SampledGenImage
 from dataset_util.attacked_dataset_loader import AttackedGenImage
-
-# FLOPs/Params
-from thop import profile, clever_format
+from dataset_util.gen_dataset import convert_to_freq, convert_to_tensor
 
 # -------------------- ARGUMENTS -------------------- #
 parser = argparse.ArgumentParser()
-parser.add_argument("-c", "--cuda", type=bool, default=False, help="Use CUDA if available")
+parser.add_argument("-m", "--models_dir", required=True, type=str, help="Trained models path")
 parser.add_argument("--test_data_img", type=str, required=True, help="Path to spatial test data")
 parser.add_argument("--test_data_spec", type=str, required=True, help="Path to spectral test data")
-parser.add_argument("-m", "--models_dir", required=True, type=str, help="Trained models path")
-
-# ensemble flags
-parser.add_argument("--best_img_model", type=str, help="Path to first model (e.g., spatial)")
-parser.add_argument("--best_spec_model", type=str, help="Path to second model (e.g., frequency)")
+parser.add_argument('--attack', type=bool, default=True, help = "apply adversarial testing on top of clean testing")
+parser.add_argument("-c", "--cuda", type=bool, default=False, help="Use CUDA if available")
 
 args = parser.parse_args()
 device = "cuda" if args.cuda and torch.cuda.is_available() else "cpu"
@@ -39,7 +37,7 @@ ATTACKS = [
     'crop', 'blur', 'noise', 'compress', 'combined'
 ]
 
-# -------------------- LOAD MODEL -------------------- #
+# load model conditionally based on command-line argument and adjust final FC layer to output 2 outputs (for our task)
 def load_model(checkpoint_path):
     if 'ShuffleNet' in checkpoint_path:
         model = shufflenet_v2_x0_5(weights=None)
@@ -75,12 +73,12 @@ def load_model(checkpoint_path):
     print(f"Loading checkpoint: {checkpoint_path}")
     return model
 
-# -------------------- LOAD DATA -------------------- #
+
+# setup dataloaders to be passed to models for testing
 def load_data():
     test_dataset_img = SampledGenImage(data_dir=args.test_data_img)
     test_dataset_spec = SampledGenImage(data_dir=args.test_data_spec)
     attack_dataset = AttackedGenImage(data_dir=args.test_data_img)  # only apply attacks on raw image
-
 
     print("-" * 64, flush=True)
     print(f'Number of spatial test images:{len(test_dataset_img)}')
@@ -114,6 +112,7 @@ def load_data():
                                                 )
     return test_loader_img, test_loader_spec, attack_loader
 
+# helper method to convert flops to GFLOPs
 def parse_flops(flops_str):
     units = {'K': 1e3, 'M': 1e6, 'G': 1e9, 'T': 1e12}
     unit = flops_str[-1]
@@ -133,7 +132,7 @@ def test(model, dataloader):
     all_preds = []
     all_targets = []
 
-    # FLOPs and Params from one sample
+    # FLOPs and params from one sample
     for example_input, _ in dataloader:
         example_input = example_input.to(device)
         example_input = example_input[:1]
@@ -142,7 +141,7 @@ def test(model, dataloader):
     flops, params = profile(model, inputs=(example_input,), verbose=False)
     flops, params = clever_format([flops, params], "%.3f")
 
-    # Run evaluation loop
+    # evaluation loop
     for images, labels in dataloader:
         images, labels = images.to(device), labels.to(device)
 
@@ -163,7 +162,7 @@ def test(model, dataloader):
     f1_score = f1(all_preds, all_targets).item()
     auc_score = auc(all_preds, all_targets).item()
 
-    # Efficiency metrics
+    # efficiency metrics
     if 'M' in params:
         total_params_mil = float(params.replace('M', ''))
     elif 'K' in params:
@@ -172,7 +171,6 @@ def test(model, dataloader):
         total_params_mil = float(params) / 1e6
 
     total_flops_g = parse_flops(flops)
-
     acc_per_mparam = acc / total_params_mil
     acc_per_gflop = acc / total_flops_g
 
@@ -188,59 +186,119 @@ def test(model, dataloader):
 
 # -------------------- TEST ATTACKED -------------------- #
 @torch.no_grad()
-def test_attacked(model, dataloader):
-    model.eval()
+def test_attacked(spatial_model, spectral_model, dataloader):
+    spatial_model.eval()
+    spectral_model.eval()
     f1 = BinaryF1Score().to(device)
     auc = BinaryAUROC().to(device)
 
-    # Only attack-specific storage
-    attack_correct = {}
-    attack_total = {}
-    attack_preds = {}
-    attack_targets = {}
+    # attack-specific storage
+    img_attack_correct, img_attack_total, img_attack_preds, img_attack_targets = {}, {}, {},{}
+    freq_attack_correct, freq_attack_total, freq_attack_preds, freq_attack_targets = {}, {}, {},{}
+    fusion_attack_correct, fusion_attack_total, fusion_attack_preds, fusion_attack_targets = {}, {}, {}, {}
 
     for images, labels, attacks in dataloader:
-        images, labels = images.to(device), labels.to(device)
 
+        # send images to device
+        img_images = images.to(device)  # spatial
+        image_np = (images.permute(0, 2, 3, 1).cpu().numpy() * 255).astype(np.uint8)  # spectral
+        freq_images = []
+        for img in image_np:
+            freq_np = convert_to_freq(img, is_tensor=True)
+            freq_tensor = convert_to_tensor(freq_np, is_tensor=True)
+            freq_images.append(freq_tensor)
+        freq_images = torch.stack(freq_images).to(device)  # spectral
+
+        # send labels to device
+        labels = labels.to(device)
+
+        # capture model outputs
         with autocast(device_type=device):
-            outputs = model(images)
+            img_outputs = spatial_model(img_images)
+            freq_outputs = spectral_model(freq_images)
 
-        preds = torch.argmax(outputs, dim=1)
-        probs = torch.softmax(outputs, dim=1)[:, 1]
+        # predictions
+        img_preds = torch.argmax(img_outputs, dim=1)
+        img_probs = torch.softmax(img_outputs, dim=1)[:, 1]
+        freq_preds = torch.argmax(freq_outputs, dim=1)
+        freq_probs = torch.softmax(freq_outputs, dim=1)[:, 1]
 
+        # for each attacked image, collect scores/metrics
         for i in range(len(attacks)):
             attack = attacks[i]
             attack_name = attack if isinstance(attack, str) else attack.lower()
 
-            if attack_name not in attack_correct:
-                attack_correct[attack_name] = 0
-                attack_total[attack_name] = 0
-                attack_preds[attack_name] = []
-                attack_targets[attack_name] = []
+            # initialize empty metric dicts as necessary
+            if attack_name not in img_attack_correct:
+                img_attack_correct[attack_name] = 0
+                img_attack_total[attack_name] = 0
+                img_attack_preds[attack_name] = []
+                img_attack_targets[attack_name] = []
+            if attack_name not in freq_attack_correct:
+                freq_attack_correct[attack_name] = 0
+                freq_attack_total[attack_name] = 0
+                freq_attack_preds[attack_name] = []
+                freq_attack_targets[attack_name] = []
+            if attack_name not in fusion_attack_correct:
+                fusion_attack_correct[attack_name] = 0
+                fusion_attack_total[attack_name] = 0
+                fusion_attack_preds[attack_name] = []
+                fusion_attack_targets[attack_name] = []
 
-            attack_correct[attack_name] += (preds[i] == labels[i]).item()
-            attack_total[attack_name] += 1
-            attack_preds[attack_name].append(probs[i].unsqueeze(0))
-            attack_targets[attack_name].append(labels[i].unsqueeze(0))
+            # update metrics
 
-    # Only print attack-wise metrics
+            # spatial
+            img_attack_correct[attack_name] += (img_preds[i] == labels[i]).item()
+            img_attack_total[attack_name] += 1
+            img_attack_preds[attack_name].append(img_probs[i].unsqueeze(0))
+            img_attack_targets[attack_name].append(labels[i].unsqueeze(0))
+
+            # spectral
+            freq_attack_correct[attack_name] += (freq_preds[i] == labels[i]).item()
+            freq_attack_total[attack_name] += 1
+            freq_attack_preds[attack_name].append(freq_probs[i].unsqueeze(0))
+            freq_attack_targets[attack_name].append(labels[i].unsqueeze(0))
+
+            # fusion
+            correct = (img_preds[i] == labels[i]) or (freq_preds[i] == labels[i])
+            fusion_attack_correct[attack_name] += correct
+            fusion_attack_total[attack_name] += 1
+            fusion_prob = torch.max(img_probs[i], freq_probs[i])
+            fusion_attack_preds[attack_name].append(fusion_prob.unsqueeze(0))
+            fusion_attack_targets[attack_name].append(labels[i].unsqueeze(0))
+
+    # print attack-wise metrics
     print("-" * 64)
 
     for attack in ATTACKS:
-        if attack not in attack_total or attack_total[attack] == 0:
+        if attack not in img_attack_total or img_attack_total[attack] == 0:
             continue
 
-        attack_preds_tensor = torch.cat(attack_preds[attack])
-        attack_targets_tensor = torch.cat(attack_targets[attack])
+        # spatial
+        img_preds_tensor = torch.cat(img_attack_preds[attack])
+        img_targets_tensor = torch.cat(img_attack_targets[attack])
+        img_acc = 100. * img_attack_correct[attack] / img_attack_total[attack]
+        img_f1 = f1(img_preds_tensor, img_targets_tensor).item()
+        img_auc = auc(img_preds_tensor, img_targets_tensor).item()
 
-        attack_acc = 100. * attack_correct[attack] / attack_total[attack]
-        attack_f1 = f1(attack_preds_tensor, attack_targets_tensor).item()
-        attack_auc = auc(attack_preds_tensor, attack_targets_tensor).item()
+        # spectral
+        freq_preds_tensor = torch.cat(freq_attack_preds[attack])
+        freq_targets_tensor = torch.cat(freq_attack_targets[attack])
+        freq_acc = 100. * freq_attack_correct[attack] / freq_attack_total[attack]
+        freq_f1 = f1(freq_preds_tensor, freq_targets_tensor).item()
+        freq_auc = auc(freq_preds_tensor, freq_targets_tensor).item()
+
+        # fusion
+        fusion_preds_tensor = torch.cat(fusion_attack_preds[attack])
+        fusion_targets_tensor = torch.cat(fusion_attack_targets[attack])
+        fusion_acc = 100. * fusion_attack_correct[attack] / fusion_attack_total[attack]
+        fusion_f1 = f1(fusion_preds_tensor, fusion_targets_tensor).item()
+        fusion_auc = auc(fusion_preds_tensor, fusion_targets_tensor).item()
 
         print(f"Attack: {attack.upper()}")
-        print(f"  Accuracy    : {attack_acc:.2f}%")
-        print(f"  F1 Score    : {attack_f1:.4f}")
-        print(f"  AUROC       : {attack_auc:.4f}")
+        print(f"  [Spatial Setting] Acc: {img_acc:.2f}% | F1: {img_f1:.4f} | AUC: {img_auc:.4f}")
+        print(f"  [Spectral Setting] Acc: {freq_acc:.2f}% | F1: {freq_f1:.4f} | AUC: {freq_auc:.4f}")
+        print(f"  [Fusion Setting] Acc: {fusion_acc:.2f}% | F1: {fusion_f1:.4f} | AUC: {fusion_auc:.4f}")
         print("-" * 64)
 
 # -------------------- MAIN -------------------- #
@@ -257,23 +315,39 @@ if __name__ == "__main__":
     print(f"Models to be tested: {models}")
     print("Starting Testing")
 
-    # print("-" * 64)
-    # print(f"Clean Images")
-    # print("-" * 64)
-    # for checkpoint in models:
-    #     model = load_model(checkpoint)
-    #     model.to(device)
-    #     if 'img' in checkpoint:
-    #         test(model, test_data_img)
-    #     elif 'freq' in checkpoint:
-    #         test(model, test_data_spec)
-
-    print(f"Attacked Images")
+    print("-" * 64)
+    print(f"Clean Images")
     print("-" * 64)
     for checkpoint in models:
         model = load_model(checkpoint)
         model.to(device)
         if 'img' in checkpoint:
-            test_attacked(model, attack_data)
+            test(model, test_data_img)
+        elif 'freq' in checkpoint:
+            test(model, test_data_spec)
+
+    # only test attacking models if command-line argument is set
+    if args.attack:
+        print(f"Attacked Images")
+        print("-" * 64)
+
+        attack_models = set()
+        for checkpoint in models:
+            if checkpoint.endswith('.pth'):
+                parts = checkpoint.split('_')
+                if len(parts) >= 3:
+                    attack_models.add(parts[0])
+
+        for model in attack_models:
+            spatial_path = f'{model}_img_checkpoint.pth'
+            spectral_path = f'{model}_freq_checkpoint.pth'
+            if os.path.exists(spatial_path) and os.path.exists(spectral_path):
+                spatial_model = load_model(spatial_path)
+                spectral_model = load_model(spectral_path)
+                spatial_model.to(device)
+                spectral_model.to(device)
+                test_attacked(spatial_model, spectral_model, attack_data)
+            else:
+                print(f"Missing both spatial and spectral model for [{model.upper()}]")
 
 

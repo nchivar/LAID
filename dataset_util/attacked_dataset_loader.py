@@ -44,7 +44,7 @@ class AttackedGenImage(Dataset):
         }
         self.data = []
 
-        # iterate through each attack and modify
+        # for each image in the original subsampled dataset, define an attack for the image randomly and perturb the image
         for image, label in self.temp_data:
 
             done_attack = False

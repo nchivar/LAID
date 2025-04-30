@@ -9,7 +9,7 @@ import time
 import shutil
 import sys
 import matplotlib
-matplotlib.use('Agg')  # Must go before importing pyplot!
+matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 from torch.amp import autocast, GradScaler
 from torchmetrics.classification import BinaryF1Score, BinaryAUROC
@@ -33,7 +33,6 @@ MODELS = ['ShuffleNet', 'MobileNetV3', 'MNASNet', 'SqueezeNet', 'MobileNetV2', '
           'Ladevic', 'Mulki']  # reference methods
 MODALITIES = ['img', 'freq']
 TRAIN_PATIENCE = 10
-DATASET_LOCAL = 'dataset'
 
 # -------------------- ARGUMENTS -------------------- #
 parser = argparse.ArgumentParser()
@@ -45,9 +44,10 @@ parser.add_argument("-lr", "--learning_rate", type=float,  default=1e-4, help="L
 parser.add_argument('-wd', '--weight_decay', type=float, default=0, help='Weight decay for optimizer')
 
 # dataset
-parser.add_argument("-d", "--data_dir", type=str, default='../825/GenImage/', help='Directory of GenImage')
+parser.add_argument("-d", "--data_dir", type=str, default='GenImage/', help='Directory of GenImage')
 parser.add_argument('--train_image_count', type=int, default=100000, help='Number of training images')
 parser.add_argument('--val_image_count', type=int, default=12500, help='Number of validation images')
+parser.add_argument("--saved_dataset", type=str, default='dataset', help='location of subsampled GenImage dataset')
 
 # model
 parser.add_argument("-m", "--model", required=True, type=str, choices=MODELS,
@@ -91,6 +91,7 @@ print(f"Device: {device}", flush=True)
 print("-" * 64, flush=True)
 
 
+# load model conditionally based on command-line argument and adjust final FC layer to output 2 outputs (for our task)
 def load_model():
 
     if args.model == 'ShuffleNet':
@@ -132,16 +133,17 @@ def load_model():
 
     return model
 
+# setup dataloaders to be passed to models for training
 def load_data():
 
-    # if dataset has not been previously generated, create dataset
-    if not os.path.exists(DATASET_LOCAL):
+    # if dataset has not been previously subsampled, create subsampled dataset
+    if not os.path.exists(args.saved_dataset):
         print(f'Generating dataset...', flush=True)
-        generate_dataset(args.data_dir, DATASET_LOCAL, args.train_image_count, args.val_image_count)
+        generate_dataset(args.data_dir, args.saved_dataset, args.train_image_count, args.val_image_count)
 
-    # determine dataset subdirectory based on modality
+    # determine dataset subdirectory based on modality of data
     subdir = 'img' if args.modality == 'img' else 'spec'
-    data_dir = os.path.join(DATASET_LOCAL, subdir)
+    data_dir = os.path.join(args.saved_dataset, subdir)
 
     print('Dataset found, beginning data loading...', flush=True)
 
@@ -152,6 +154,7 @@ def load_data():
     train_batches = math.ceil(len(train_dataset) / args.batch_size)
     val_batches = math.ceil(len(val_dataset) / args.batch_size)
 
+    # if dataset is not sized properly, force user to re-generate
     if (len(train_dataset) != args.train_image_count) or (len(val_dataset) != args.val_image_count):
         print("-" * 64, flush=True)
         print('Dataset is incorrectly sized (likely from previous generation), please delete the \'./dataset\' folder and re-run.')
@@ -180,6 +183,8 @@ def load_data():
                                            persistent_workers=True)
     return train_data, val_data
 
+
+# load model from checkpoint ig needed
 def load_checkpoint(path, model, optimizer=None):
     checkpoint = torch.load(path, map_location='cuda')  # or 'cpu' if needed
 
@@ -193,11 +198,10 @@ def load_checkpoint(path, model, optimizer=None):
 
 def train(model, train_data, val_data, optimizer, scheduler, loss_fn):
 
-
+    # initializtion
     scaler = GradScaler()
     f1 = BinaryF1Score().to(device)
     auc = BinaryAUROC().to(device)
-
     train_losses = []
     val_losses = []
     best_val_loss = float('inf')
@@ -214,7 +218,7 @@ def train(model, train_data, val_data, optimizer, scheduler, loss_fn):
         train_preds = []
         train_labels = []
 
-        batch_timer_start = time.time()  # Start timing before the loop
+        batch_timer_start = time.time()  # start timing before the loop
 
         for batch_idx, (images, labels) in enumerate(train_data):
 
@@ -248,10 +252,10 @@ def train(model, train_data, val_data, optimizer, scheduler, loss_fn):
                       f"Time for last 10 batches: {batch_timer_end - batch_timer_start:.2f} seconds")
                 batch_timer_start = time.time()  # Reset timer for next 10 batches
 
-            # del images, labels, outputs, probs, preds, loss
+            # del images, labels, outputs, probs, preds, loss for increased memory efficiency
             torch.cuda.empty_cache()
 
-        # training epoch stats
+        # results - train
         train_loss = train_loss / args.train_image_count
         train_losses.append(train_loss)
         train_acc = 100. * train_correct_predictions / args.train_image_count
@@ -277,7 +281,6 @@ def train(model, train_data, val_data, optimizer, scheduler, loss_fn):
             with autocast(device_type=device):
                 outputs = model(images)
                 loss = loss_fn(outputs, labels)
-
 
             # accumulate batch loss
             preds = torch.argmax(outputs, dim=1)
@@ -325,7 +328,7 @@ def train(model, train_data, val_data, optimizer, scheduler, loss_fn):
         plt.savefig(os.path.join(args.output_dir, args.output_plot))
         plt.close()
 
-        # model saving
+        # model saving - only save if validation accuracy improves
         if val_loss < best_val_loss:
             patience_counter = 0 # reset patience back to 0
             best_val_loss = val_loss

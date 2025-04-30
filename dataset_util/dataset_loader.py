@@ -12,6 +12,7 @@ class SampledGenImage(Dataset):
         self.data_dir = data_dir
         self.data = []
 
+        # convert each image in folder to labelled data entry for correct ground truth labels
         for data_class in os.listdir(data_dir):
             type_path = os.path.join(data_dir, data_class)
             label = LABEL_TO_INT.get(data_class)
