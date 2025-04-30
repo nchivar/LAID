@@ -28,7 +28,7 @@
 
 
 ## Setup
-1. Download the [GenImage](https://github.com/GenImage-Dataset/GenImage) dataset (Note: The local disk location of the GenImage dataset is flexible. You can specify its path using the `--data_dir` command-line argument when running `train.py`. For detailed instructions, refer to the [Training](#Training) section.
+1. Download the [GenImage](https://github.com/GenImage-Dataset/GenImage) dataset (note: the local disk location of the GenImage dataset is flexible, you can specify its path using the `--data_dir` command-line argument when running `train.py`. For detailed instructions, refer to the [Training](#Training) section.
 2. (Optional) Download pretrained detection model [weights](https://drive.google.com/drive/folders/1FY7boXxIyKh8XYJwFwR104XL8_C35Umc?usp=sharing)
 
 ## Training
