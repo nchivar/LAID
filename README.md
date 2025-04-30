@@ -20,6 +20,8 @@
 |ShuffleNet|ShuffleNet: An Extremely Efficient Convolutional Neural Network for Mobile Devices|:white_check_mark:|:white_check_mark:|
 |MobileNetV3|Searching for MobileNetV3|:white_check_mark:|:white_check_mark:|
 |MnasNet|MnasNet: Platform-Aware Neural Architecture Search for Mobile|:white_check_mark:|:white_check_mark:|
+|SqueezeNet|SqueezeNet: AlexNet-level accuracy with 50x fewer parameters and <0.5MB model size|:white_check_mark:|:white_check_mark:|
+|MobileNetV2|MobileNetV2: Inverted Residuals and Linear Bottlenecks|:white_check_mark:|:white_check_mark:|
 |RegNet|RegNet: Self-Regulated Network for Image Classification|:white_check_mark:|:white_check_mark:|
 |Lađević et al.|Detection of AI-Generated Synthetic Images with a Lightweight CNN|:white_check_mark:|:white_check_mark:|
 |SpottingDiffusion |SpottingDiffusion: using transfer learning to detect latent diffusion model-synthesized images|:white_check_mark:|:white_check_mark:|
