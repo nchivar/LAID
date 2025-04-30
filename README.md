@@ -9,7 +9,7 @@
 
 </div>
 
-#  LAID: Lightweight AI-Generated Image Detection in Spatial and Frequency Domains
+#  LAID: Lightweight AI-Generated Image Detection in Spatial and Spectral Domains
 
 ## News
 :new: [2025-04-28] Official release of LAID repository
