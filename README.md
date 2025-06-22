@@ -12,7 +12,7 @@
 A framework for benchmarking lightweight models on AIGI detection tasks across spatial, spectral, and fusion domains. 
 
 ## 📌 Featured Paper
-**to be features at PST2025**
+**...to be featured at PST2025...**
 
 ## News
 :new: [2025-04-28] Official release of LAID repository 
