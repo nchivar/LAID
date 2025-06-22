@@ -16,7 +16,9 @@ A framework for benchmarking lightweight models on AIGI detection tasks across s
 
 ## News
 :new: [2025-04-28] Official release of LAID repository 
+
 :new: [2025-06-01] Paper accepted to PST2025 
+
 :new: [2025-06-22] Publicized repository, updated README, and added 4 new transformer models to LAID (EdgeNeXt, MobileViT, MobileViTV2, FastViT)
 
 # Collected Methods
