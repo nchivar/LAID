@@ -5,6 +5,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 from torch.amp import autocast
+import timm
 from torchmetrics.classification import BinaryF1Score, BinaryAUROC
 from torchvision.models import (shufflenet_v2_x0_5,
                                 mobilenet_v3_small,
@@ -64,6 +65,14 @@ def load_model(checkpoint_path):
         model = CNNModel()
     elif 'Mulki' in checkpoint_path:
         model = MobileNetV2Classifier()
+    elif 'EdgeNeXt' in checkpoint_path:
+        model = timm.create_model('edgenext_xx_small', pretrained=False, num_classes=2)
+    elif 'MobileViTV1' in checkpoint_path:
+        model = timm.create_model('mobilevit_xxs', pretrained=False, num_classes=2)
+    elif 'MobileViTV2' in checkpoint_path:
+        model = timm.create_model('mobilevitv2_050', pretrained=False, num_classes=2)
+    elif 'FastViT' in checkpoint_path:
+        model = timm.create_model('fastvit_t8', pretrained=False, num_classes=2)
     else:
         raise ValueError("Unknown model type")
 
@@ -334,13 +343,14 @@ if __name__ == "__main__":
         attack_models = set()
         for checkpoint in models:
             if checkpoint.endswith('.pth'):
-                parts = checkpoint.split('_')
+                parts = checkpoint.split('/')[1]
+                parts = parts.split('_')
                 if len(parts) >= 3:
                     attack_models.add(parts[0])
 
         for model in attack_models:
-            spatial_path = f'{model}_img_checkpoint.pth'
-            spectral_path = f'{model}_freq_checkpoint.pth'
+            spatial_path = os.path.join(args.models_dir, f'{model}_img_checkpoint.pth')
+            spectral_path = os.path.join(args.models_dir, f'{model}_freq_checkpoint.pth')
             if os.path.exists(spatial_path) and os.path.exists(spectral_path):
                 spatial_model = load_model(spatial_path)
                 spectral_model = load_model(spectral_path)

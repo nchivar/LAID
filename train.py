@@ -4,6 +4,7 @@ import gc
 import argparse
 import torch
 import torch.nn as nn
+import timm
 import math
 import time
 import shutil
@@ -29,8 +30,10 @@ from dataset_util.gen_dataset import generate_dataset
 
 
 # -------------------- GLOBAL VARS  -------------------- #
-MODELS = ['ShuffleNet', 'MobileNetV3', 'MNASNet', 'SqueezeNet', 'MobileNetV2', 'RegNet', 'EfficientNet',
+MODELS = ['ShuffleNet', 'MobileNetV3', 'MNASNet', 'SqueezeNet', 'MobileNetV2', 'RegNet', 'EfficientNet', # CNNs
+          'EdgeNeXt', 'MobileViTV1','MobileViTV2', 'FastViT', # Transformers
           'Ladevic', 'Mulki']  # reference methods
+
 MODALITIES = ['img', 'freq']
 TRAIN_PATIENCE = 10
 
@@ -39,7 +42,7 @@ parser = argparse.ArgumentParser()
 
 # hyper-parameters
 parser.add_argument("-e", "--epochs", type=int, default=100, help="Number of epochs")
-parser.add_argument("-b", "--batch_size", type=int, default=64, help="Batch size")
+parser.add_argument("-b", "--batch_size", type=int, default=64  , help="Batch size")
 parser.add_argument("-lr", "--learning_rate", type=float,  default=1e-4, help="Learning rate for the optimizer")
 parser.add_argument('-wd', '--weight_decay', type=float, default=0, help='Weight decay for optimizer')
 
@@ -128,6 +131,18 @@ def load_model():
     elif args.model == 'Mulki':
         model = MobileNetV2Classifier()
 
+    elif args.model == 'EdgeNeXt':
+        model = timm.create_model('edgenext_xx_small', pretrained=True, num_classes=2)
+
+    elif args.model == 'MobileViTV1':
+        model = timm.create_model('mobilevit_xxs', pretrained=True, num_classes=2)
+
+    elif args.model == 'MobileViTV2':
+        model = timm.create_model('mobilevitv2_050', pretrained=True, num_classes=2)
+
+    elif args.model == 'FastViT':
+        model = timm.create_model('fastvit_t8', pretrained=True, num_classes=2)
+
     else:
         return None
 
@@ -184,7 +199,7 @@ def load_data():
     return train_data, val_data
 
 
-# load model from checkpoint ig needed
+# load model from checkpoint if needed
 def load_checkpoint(path, model, optimizer=None):
     checkpoint = torch.load(path, map_location='cuda')  # or 'cpu' if needed
 
@@ -374,7 +389,6 @@ if __name__ == "__main__":
         mode='min',  # because lower loss is better
         factor=0.1,  # reduce LR by 10×
         patience=5,  # wait 5 epochs of no improvement
-        verbose=True  # print when LR is reduced
     )
     loss_fn = nn.CrossEntropyLoss()
 
