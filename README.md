@@ -12,14 +12,18 @@
 A framework for benchmarking lightweight models on AIGI detection tasks across spatial, spectral, and fusion domains. 
 
 ## 📌 Featured Paper
-**...to be featured at PST2025...**
+Featured @ PST2025 - https://arxiv.org/abs/2507.05162
+
 
 ## News
+
 :new: [2025-04-28] Official release of LAID repository 
 
 :new: [2025-06-01] Paper accepted to PST2025 
 
 :new: [2025-06-22] Publicized repository, updated README, and added 4 new transformer models to LAID (EdgeNeXt, MobileViT, MobileViTV2, FastViT)
+
+:new: [2025-12-01] Added arXiv paper link
 
 # Collected Methods
 |method|paper|test code|train code|
